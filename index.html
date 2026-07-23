@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Phrasal Cards</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f3f4f8;font-family:Arial,sans-serif;color:#222}
+main{width:min(94%,620px);margin:auto;padding:24px 0 50px}header{text-align:center}h1{color:#4338ca;margin-bottom:6px}
+header p{color:#666}.nav{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;background:#fff;padding:6px;border-radius:16px;margin:22px 0}
+.nav button{border:0;border-radius:11px;padding:12px 4px;background:transparent}.nav .active{background:#635bff;color:#fff}
+.page{display:none}.page.active{display:block}.panel,.card{background:#fff;border-radius:22px;box-shadow:0 7px 26px #00000016}
+.panel{padding:22px}.study-top,.quiz-top,.list-top{display:flex;justify-content:space-between;color:#666;font-size:14px}
+.card{width:100%;min-height:320px;border:0;padding:28px;margin-top:12px}.verb{font-size:38px;font-weight:bold;color:#332e8b}
+.answer{display:flex;flex-direction:column;gap:18px;font-size:27px;font-weight:bold}.example,.translation{font-size:17px;font-weight:normal;color:#666;line-height:1.45}
+.hidden{display:none!important}.hint{text-align:center;color:#666}.row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.row button,.primary,.secondary,.option,.filter,.action{border:0;border-radius:12px;padding:14px}.previous,.secondary{background:#e9e9ef}
+.unknown{background:#ffe5e5;color:#982424}.known{background:#dff7e6;color:#176b37}.primary{width:100%;background:#635bff;color:#fff;font-weight:bold;margin-top:16px}
+.secondary{width:100%;margin-top:10px}.primary:disabled,.secondary:disabled{opacity:.5;cursor:not-allowed}
+form{display:flex;flex-direction:column}label{font-weight:bold;margin:14px 0 7px}input,textarea{padding:13px;border:1px solid #d5d5de;border-radius:11px;font:inherit}
+textarea{min-height:85px}.note,.message{color:#666;font-size:14px}.message{text-align:center;font-weight:bold}.success{color:#17713a}.error{color:#b3261e}
+.quiz{text-align:center}.quiz-top{font-weight:bold}.question{font-size:30px}.options{display:grid;gap:9px}.option{text-align:left;border:2px solid #e2e2e8;background:#fff}
+.correct{background:#e4f8eb;border-color:#23a455;color:#176b37}.wrong{background:#ffe8e8;border-color:#d64545;color:#9a2424}
+.filters{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:15px 0}.filter{background:#ececf2}.filter.active{background:#635bff;color:#fff}
+.item{border:1px solid #e2e2e8;background:#fafafa;border-radius:14px;padding:14px;margin-bottom:10px}.item h3{color:#403a9b;margin:0}
+.badge{display:inline-block;border-radius:999px;padding:6px 10px;font-size:12px;font-weight:bold}.actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
+.action{flex:1;min-width:105px}.empty{text-align:center;color:#777;padding:25px}.score{font-size:40px;color:#635bff;font-weight:bold}
+@media(max-width:450px){.nav button{font-size:12px}.verb{font-size:31px}.answer{font-size:23px}.row button{font-size:13px}}
+</style>
+</head>
+<body>
+<main>
+<header><h1>Phrasal Cards</h1><p>Kartlarını oluştur, bilmediklerini çalış ve 20 soruluk quiz yap.</p></header>
+
+<nav class="nav">
+<button class="active" data-page="study">Çalış</button>
+<button data-page="add">Kart Ekle</button>
+<button data-page="quiz">Quiz</button>
+<button data-page="list">Kartlarım</button>
+</nav>
+
+<section id="study" class="page active">
+<div class="study-top"><span id="progress">Kart 0 / 0</span><span id="unknownCount">Bilmediğim: 0</span></div>
+<button id="card" class="card"><span id="verb" class="verb">Henüz kart yok</span><span id="answer" class="answer hidden"></span></button>
+<p class="hint">Anlamı görmek için karta dokun.</p>
+<div class="row">
+<button id="previous" class="previous">Önceki</button>
+<button id="markUnknown" class="unknown">Bilmiyorum</button>
+<button id="markKnown" class="known">Biliyorum</button>
+</div>
+</section>
+
+<section id="add" class="page">
+<div class="panel">
+<h2>Yeni Kart Ekle</h2>
+<form id="form">
+<label>Phrasal verb</label><input id="newVerb" placeholder="carry on" required>
+<label>Türkçe anlamı</label><input id="newMeaning" placeholder="devam etmek" required>
+<label>İngilizce örnek cümle</label><textarea id="newExample" required></textarea>
+<label>Cümlenin Türkçesi</label><textarea id="newTranslation" required></textarea>
+<button class="primary" type="submit">Kartı Kaydet</button>
+</form>
+<p class="note">Yeni kart otomatik olarak “Bilmiyorum” grubuna eklenir.</p>
+<p id="addMessage" class="message"></p>
+</div>
+</section>
+
+<section id="quiz" class="page">
+<div id="quizStart" class="panel quiz">
+<h2>20 Soruluk Quiz</h2>
+<p>Quiz sadece “Bilmiyorum” olarak işaretlediğin kartlardan hazırlanır.</p>
+<p id="requirement"></p>
+<button id="startQuiz" class="primary">20 Soruluk Quiz Başlat</button>
+<button id="refreshQuiz" class="secondary">Quizi Yenile</button>
+</div>
+
+<div id="quizGame" class="panel hidden">
+<div class="quiz-top"><span id="quizProgress">Soru 1 / 20</span><span id="quizScore">Puan: 0</span></div>
+<p id="direction" class="success"></p><h2 id="question" class="question"></h2>
+<div id="options" class="options"></div><p id="feedback" class="message"></p>
+<button id="next" class="primary hidden">Sonraki Soru</button>
+<button id="refreshDuring" class="secondary">Yeni 20 Soru Hazırla</button>
+</div>
+
+<div id="quizResult" class="panel quiz hidden">
+<h2>Quiz Tamamlandı</h2><p id="finalScore" class="score"></p><p id="resultText"></p>
+<button id="restart" class="primary">Yeni 20 Soruluk Quiz</button>
+</div>
+</section>
+
+<section id="list" class="page">
+<div class="panel">
+<div class="list-top"><div><h2>Kartlarım</h2><p id="summary"></p></div><span id="total"></span></div>
+<div class="filters">
+<button class="filter active" data-filter="all">Tümü</button>
+<button class="filter" data-filter="unknown">Bilmediklerim</button>
+<button class="filter" data-filter="known">Bildiklerim</button>
+</div>
+<div id="cardList"></div>
+</div>
+</section>
+</main>
+
+<script>
+let cards=load(),index=0,filter="all",quiz=[],qIndex=0,score=0,answered=false;
+const $=id=>document.getElementById(id), esc=s=>String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
+function load(){try{return JSON.parse(localStorage.getItem("phrasalCardsFinal"))||[]}catch{return[]}}
+function save(){localStorage.setItem("phrasalCardsFinal",JSON.stringify(cards))}
+const unknown=()=>cards.filter(c=>c.status==="unknown"), known=()=>cards.filter(c=>c.status==="known");
+document.querySelectorAll(".nav button").forEach(b=>b.onclick=()=>{document.querySelectorAll(".nav button").forEach(x=>x.classList.remove("active"));document.querySelectorAll(".page").forEach(x=>x.classList.remove("active"));b.classList.add("active");$(b.dataset.page).classList.add("active");if(b.dataset.page==="study"){index=0;showCard()}if(b.dataset.page==="list")renderList();if(b.dataset.page==="quiz"){resetQuiz();updateRequirement()}});
+function showCard(){if(!cards.length){$("verb").textContent="Henüz kart yok";$("answer").innerHTML='<span class="example">Kart Ekle bölümünden ilk kartını oluştur.</span>';$("progress").textContent="Kart 0 / 0";$("unknownCount").textContent="Bilmediğim: 0";["previous","markUnknown","markKnown"].forEach(id=>$(id).disabled=true);return}
+["previous","markUnknown","markKnown"].forEach(id=>$(id).disabled=false);if(index>=cards.length)index=0;let c=cards[index],isKnown=c.status==="known";
+$("verb").textContent=c.verb;$("answer").innerHTML=`<span>${esc(c.meaning)}</span><span class="example">${esc(c.example)}</span><span class="translation">${esc(c.translation)}</span><span class="badge ${isKnown?"known":"unknown"}">${isKnown?"Biliyorum":"Bilmiyorum"}</span>`;
+$("verb").classList.remove("hidden");$("answer").classList.add("hidden");$("progress").textContent=`Kart ${index+1} / ${cards.length}`;$("unknownCount").textContent=`Bilmediğim: ${unknown().length}`}
+$("card").onclick=()=>{if(!cards.length)return;$("verb").classList.toggle("hidden");$("answer").classList.toggle("hidden")};
+$("previous").onclick=()=>{if(cards.length){index=(index-1+cards.length)%cards.length;showCard()}};
+function mark(status){if(!cards.length)return;cards[index].status=status;save();index=(index+1)%cards.length;showCard();updateRequirement()}
+$("markUnknown").onclick=()=>mark("unknown");$("markKnown").onclick=()=>mark("known");
+$("form").onsubmit=e=>{e.preventDefault();let verb=$("newVerb").value.trim(),meaning=$("newMeaning").value.trim(),example=$("newExample").value.trim(),translation=$("newTranslation").value.trim();
+if(cards.some(c=>c.verb.toLowerCase()===verb.toLowerCase())){msg("Bu phrasal verb zaten var.",false);return}
+cards.push({verb,meaning,example,translation,status:"unknown"});save();e.target.reset();msg(`"${verb}" kaydedildi.`,true);showCard();updateRequirement()};
+function msg(t,ok){$("addMessage").textContent=t;$("addMessage").className="message "+(ok?"success":"error");setTimeout(()=>{$("addMessage").textContent=""},2500)}
+document.querySelectorAll(".filter").forEach(b=>b.onclick=()=>{filter=b.dataset.filter;document.querySelectorAll(".filter").forEach(x=>x.classList.remove("active"));b.classList.add("active");renderList()});
+function renderList(){let arr=filter==="all"?cards:cards.filter(c=>c.status===filter);$("total").textContent=`${cards.length} kart`;$("summary").textContent=`${unknown().length} bilmediğim • ${known().length} bildiğim`;$("cardList").innerHTML=arr.length?"":'<p class="empty">Bu grupta kart yok.</p>';
+arr.forEach(c=>{let real=cards.indexOf(c),knownState=c.status==="known",el=document.createElement("article");el.className="item";el.innerHTML=`<div class="list-top"><h3>${esc(c.verb)}</h3><span class="badge ${knownState?"known":"unknown"}">${knownState?"Biliyorum":"Bilmiyorum"}</span></div><p>${esc(c.meaning)}</p><p class="example">${esc(c.example)}</p><div class="actions"><button class="action unknown" data-a="unknown" data-i="${real}">Bilmiyorum</button><button class="action known" data-a="known" data-i="${real}">Biliyorum</button><button class="action secondary" data-a="delete" data-i="${real}">Sil</button></div>`;$("cardList").appendChild(el)});
+document.querySelectorAll("[data-a]").forEach(b=>b.onclick=()=>{let i=Number(b.dataset.i);if(b.dataset.a==="delete"){if(confirm(`"${cards[i].verb}" silinsin mi?`))cards.splice(i,1)}else cards[i].status=b.dataset.a;save();renderList();showCard();updateRequirement()})}
+function updateRequirement(){let n=unknown().length,ok=n>=20;$("requirement").textContent=ok?`${n} bilmediğin karttan rastgele 20 soru hazırlanacak.`:`Şu anda ${n} bilmediğin kart var. Quiz için en az 20 kartı “Bilmiyorum” olarak işaretlemelisin.`;$("requirement").className=ok?"success":"error";$("startQuiz").disabled=!ok;$("refreshQuiz").disabled=!ok}
+function resetQuiz(){$("quizStart").classList.remove("hidden");$("quizGame").classList.add("hidden");$("quizResult").classList.add("hidden")}
+function shuffle(a){a=[...a];for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function begin(){let pool=unknown();if(pool.length<20)return;let chosen=shuffle(pool).slice(0,20);quiz=chosen.map((c,i)=>{let askMeaning=i%2===0,correct=askMeaning?c.meaning:c.verb,wrong=shuffle([...new Set(pool.filter(x=>x!==c).map(x=>askMeaning?x.meaning:x.verb))]).slice(0,3);return{direction:askMeaning?"Bu phrasal verbün Türkçe anlamı nedir?":"Bu anlam hangi phrasal verbe aittir?",question:askMeaning?c.verb:c.meaning,correct,options:shuffle([correct,...wrong]),example:c.example}});qIndex=0;score=0;answered=false;$("quizStart").classList.add("hidden");$("quizResult").classList.add("hidden");$("quizGame").classList.remove("hidden");showQuestion()}
+function showQuestion(){answered=false;let q=quiz[qIndex];$("quizProgress").textContent=`Soru ${qIndex+1} / 20`;$("quizScore").textContent=`Puan: ${score}`;$("direction").textContent=q.direction;$("question").textContent=q.question;$("feedback").textContent="";$("next").classList.add("hidden");$("options").innerHTML="";
+q.options.forEach(o=>{let b=document.createElement("button");b.className="option";b.textContent=o;b.onclick=()=>answer(o,b);$("options").appendChild(b)})}
+function answer(selected,btn){if(answered)return;answered=true;let q=quiz[qIndex];document.querySelectorAll(".option").forEach(b=>{b.disabled=true;if(b.textContent===q.correct)b.classList.add("correct")});
+if(selected===q.correct){score++;btn.classList.add("correct");$("feedback").textContent=`Doğru! ${q.example}`;$("feedback").className="message success"}else{btn.classList.add("wrong");$("feedback").textContent=`Doğru cevap: ${q.correct}`;$("feedback").className="message error"}
+$("quizScore").textContent=`Puan: ${score}`;$("next").textContent=qIndex===19?"Sonucu Gör":"Sonraki Soru";$("next").classList.remove("hidden")}
+$("next").onclick=()=>{qIndex++;if(qIndex>=20){$("quizGame").classList.add("hidden");$("quizResult").classList.remove("hidden");$("finalScore").textContent=`${score} / 20`;$("resultText").textContent=score>=16?"Çok iyi!":score>=12?"İyi gidiyorsun.":"Kartları biraz daha tekrar et."}else showQuestion()};
+$("startQuiz").onclick=begin;$("refreshQuiz").onclick=begin;$("refreshDuring").onclick=begin;$("restart").onclick=begin;
+showCard();updateRequirement();
+</script>
+</body>
+</html>
