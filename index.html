@@ -21,7 +21,7 @@ form{display:flex;flex-direction:column}label{font-weight:bold;margin:14px 0 7px
 textarea{min-height:85px}.note,.message{color:#666;font-size:14px}.message{text-align:center;font-weight:bold}.success{color:#17713a}.error{color:#b3261e}
 .quiz{text-align:center}.quiz-top{font-weight:bold}.question{font-size:30px}.options{display:grid;gap:9px}.option{text-align:left;border:2px solid #e2e2e8;background:#fff}
 .correct{background:#e4f8eb;border-color:#23a455;color:#176b37}.wrong{background:#ffe8e8;border-color:#d64545;color:#9a2424}
-.filters{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:15px 0}.filter{background:#ececf2}.filter.active{background:#635bff;color:#fff}
+.filters{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:15px 0}.filter{background:#ececf2}.filter.active{background:#635bff;color:#fff}.data-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0}.data-button{border:0;border-radius:12px;padding:14px;font-weight:bold}.export{background:#e5e7ff;color:#3730a3}.import{background:#e7f7ed;color:#176b37}
 .item{border:1px solid #e2e2e8;background:#fafafa;border-radius:14px;padding:14px;margin-bottom:10px}.item h3{color:#403a9b;margin:0}
 .badge{display:inline-block;border-radius:999px;padding:6px 10px;font-size:12px;font-weight:bold}.actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
 .action{flex:1;min-width:105px}.empty{text-align:center;color:#777;padding:25px}.score{font-size:40px;color:#635bff;font-weight:bold}
@@ -91,6 +91,10 @@ textarea{min-height:85px}.note,.message{color:#666;font-size:14px}.message{text-
 <section id="list" class="page">
 <div class="panel">
 <div class="list-top"><div><h2>Kartlarım</h2><p id="summary"></p></div><span id="total"></span></div>
+<div class="data-actions"><button id="exportCards" class="data-button export">Kartları Dışa Aktar</button><button id="importCards" class="data-button import">Kartları İçe Aktar</button></div>
+<input id="importFile" type="file" accept=".json,application/json" class="hidden">
+<p id="transferMessage" class="message"></p>
+<p class="note">Bilgisayarda dışa aktar, JSON dosyasını telefona gönder ve telefonda içe aktar.</p>
 <div class="filters">
 <button class="filter active" data-filter="all">Tümü</button>
 <button class="filter" data-filter="unknown">Bilmediklerim</button>
@@ -119,11 +123,38 @@ $("markUnknown").onclick=()=>mark("unknown");$("markKnown").onclick=()=>mark("kn
 $("form").onsubmit=e=>{e.preventDefault();let verb=$("newVerb").value.trim(),meaning=$("newMeaning").value.trim(),example=$("newExample").value.trim(),translation=$("newTranslation").value.trim();
 if(cards.some(c=>c.verb.toLowerCase()===verb.toLowerCase())){msg("Bu phrasal verb zaten var.",false);return}
 cards.push({verb,meaning,example,translation,status:"unknown"});save();e.target.reset();msg(`"${verb}" kaydedildi.`,true);showCard();updateRequirement()};
-function msg(t,ok){$("addMessage").textContent=t;$("addMessage").className="message "+(ok?"success":"error");setTimeout(()=>{$("addMessage").textContent=""},2500)}
+function msg(t,ok,target="addMessage"){$(target).textContent=t;$(target).className="message "+(ok?"success":"error");setTimeout(()=>{$(target).textContent=""},3500)}
 document.querySelectorAll(".filter").forEach(b=>b.onclick=()=>{filter=b.dataset.filter;document.querySelectorAll(".filter").forEach(x=>x.classList.remove("active"));b.classList.add("active");renderList()});
 function renderList(){let arr=filter==="all"?cards:cards.filter(c=>c.status===filter);$("total").textContent=`${cards.length} kart`;$("summary").textContent=`${unknown().length} bilmediğim • ${known().length} bildiğim`;$("cardList").innerHTML=arr.length?"":'<p class="empty">Bu grupta kart yok.</p>';
 arr.forEach(c=>{let real=cards.indexOf(c),knownState=c.status==="known",el=document.createElement("article");el.className="item";el.innerHTML=`<div class="list-top"><h3>${esc(c.verb)}</h3><span class="badge ${knownState?"known":"unknown"}">${knownState?"Biliyorum":"Bilmiyorum"}</span></div><p>${esc(c.meaning)}</p><p class="example">${esc(c.example)}</p><div class="actions"><button class="action unknown" data-a="unknown" data-i="${real}">Bilmiyorum</button><button class="action known" data-a="known" data-i="${real}">Biliyorum</button><button class="action secondary" data-a="delete" data-i="${real}">Sil</button></div>`;$("cardList").appendChild(el)});
 document.querySelectorAll("[data-a]").forEach(b=>b.onclick=()=>{let i=Number(b.dataset.i);if(b.dataset.a==="delete"){if(confirm(`"${cards[i].verb}" silinsin mi?`))cards.splice(i,1)}else cards[i].status=b.dataset.a;save();renderList();showCard();updateRequirement()})}
+
+$("exportCards").onclick=()=>{
+  if(!cards.length){msg("Dışa aktarılacak kart yok.",false,"transferMessage");return}
+  const data={version:1,exportedAt:new Date().toISOString(),cards};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const link=document.createElement("a");
+  link.href=url;
+  link.download=`phrasal-cards-${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);
+  msg(`${cards.length} kart dışa aktarıldı.`,true,"transferMessage");
+};
+$("importCards").onclick=()=>$("importFile").click();
+$("importFile").onchange=async e=>{
+  const file=e.target.files[0];if(!file)return;
+  try{
+    const parsed=JSON.parse(await file.text());
+    const imported=Array.isArray(parsed)?parsed:parsed.cards;
+    if(!Array.isArray(imported))throw new Error();
+    const cleaned=imported.filter(c=>c&&typeof c.verb==="string"&&typeof c.meaning==="string").map(c=>({verb:String(c.verb).trim(),meaning:String(c.meaning).trim(),example:String(c.example||"").trim(),translation:String(c.translation||"").trim(),status:c.status==="known"?"known":"unknown"})).filter(c=>c.verb&&c.meaning);
+    if(!cleaned.length)throw new Error();
+    const replace=confirm(`${cleaned.length} kart bulundu.\n\nTamam: mevcut kartların üzerine yaz.\nİptal: mevcut kartlarla birleştir.`);
+    if(replace){cards=cleaned}else{const map=new Map(cards.map(c=>[c.verb.toLowerCase(),c]));cleaned.forEach(c=>map.set(c.verb.toLowerCase(),c));cards=[...map.values()]}
+    save();index=0;showCard();renderList();updateRequirement();msg(`${cleaned.length} kart başarıyla içe aktarıldı.`,true,"transferMessage");
+  }catch(err){msg("Dosya okunamadı. Geçerli bir JSON dosyası seç.",false,"transferMessage")}finally{e.target.value=""}
+};
+
 function updateRequirement(){let n=unknown().length,ok=n>=20;$("requirement").textContent=ok?`${n} bilmediğin karttan rastgele 20 soru hazırlanacak.`:`Şu anda ${n} bilmediğin kart var. Quiz için en az 20 kartı “Bilmiyorum” olarak işaretlemelisin.`;$("requirement").className=ok?"success":"error";$("startQuiz").disabled=!ok;$("refreshQuiz").disabled=!ok}
 function resetQuiz(){$("quizStart").classList.remove("hidden");$("quizGame").classList.add("hidden");$("quizResult").classList.add("hidden")}
 function shuffle(a){a=[...a];for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
