@@ -179,7 +179,7 @@ const norm = x => String(x||'').trim().toLocaleLowerCase('tr');
 const css = document.createElement('style');
 css.textContent = `.group-pick{display:grid;gap:7px;margin:12px 0 16px}.group-pick label{font-size:14px;margin:0;font-weight:700;color:#403a9b}.group-pick select{width:100%;padding:12px;border:1px solid #c9c9d9;border-radius:11px;background:#fff;font:inherit}.group-hint{color:#666;font-size:13px;margin:0 0 10px}`;
 document.head.appendChild(css);
-let selectedStudy=localStorage.getItem('phrasalSelectedStudyGroup')||'', selectedQuiz=localStorage.getItem('phrasalSelectedQuizGroup')||'', selectedList='all';
+let selectedStudy=localStorage.getItem('phrasalSelectedStudyGroup')||localStorage.getItem('phrasalSelectedQuizGroup')||'', selectedQuiz=selectedStudy, selectedList='all';
 document.querySelector('#quizStart h2').textContent='Grubumdaki Bilmediklerim Quizi';
 byId('startQuiz').textContent='Grup Quizini Başlat';
 byId('refreshQuiz').textContent='Grup Quizini Yenile';
@@ -203,10 +203,20 @@ function control(where, label, allAllowed, onChange){
  return (wanted)=>{const gs=groups();const options=(allAllowed?[{id:'all',name:'Tüm gruplar',n:cards.length}]:[]).concat(gs);select.replaceChildren(...options.map(g=>{const o=document.createElement('option');o.value=g.id;o.textContent=`${g.name} (${g.n} kelime)`;return o}));if(!options.some(g=>g.id===wanted))wanted=options[0]?.id||'';select.value=wanted;return wanted};
 }
 const studyWrap=document.createElement('div');byId('study').insertBefore(studyWrap,byId('study').querySelector('.study-top'));
-const studyControl=control(studyWrap,'Çalışılacak kelime grubu',false,v=>{selectedStudy=v;localStorage.setItem('phrasalSelectedStudyGroup',v);index=0;showCard()});
-const quizControl=control(byId('quizStart'),'Quiz yapılacak kelime grubu',false,v=>{selectedQuiz=v;localStorage.setItem('phrasalSelectedQuizGroup',v);updateRequirement()});
+const studyControl=control(studyWrap,'Çalışılacak kelime grubu',false,v=>{setActiveGroup(v);index=0;showCard();updateRequirement()});
+const quizControl=control(byId('quizStart'),'Quiz yapılacak kelime grubu',false,v=>{setActiveGroup(v);index=0;showCard();updateRequirement()});
 const listControl=control(byId('list').querySelector('.panel'),'Kartları göster',true,v=>{selectedList=v;renderList()});
-function refresh(){selectedStudy=studyControl(selectedStudy);selectedQuiz=quizControl(selectedQuiz);selectedList=listControl(selectedList)}
+function setActiveGroup(id){
+ selectedStudy=id;selectedQuiz=id;
+ localStorage.setItem('phrasalSelectedStudyGroup',id);
+ localStorage.setItem('phrasalSelectedQuizGroup',id);
+ studyControl(id);quizControl(id);
+}
+function refresh(){
+ const id=studyControl(selectedStudy);
+ setActiveGroup(id);
+ selectedList=listControl(selectedList);
+}
 function safe(s){return esc(s??'')}
 // Orijinal islevleri, secilen grubu esas alacak sekilde degistir.
 showCard=function(){const pool=groupCards(selectedStudy);if(!pool.length){byId('verb').textContent='Bu grupta kart yok';byId('answer').innerHTML='';byId('progress').textContent='Kart 0 / 0';byId('unknownCount').textContent='Bilmediğim: 0';['previous','markUnknown','markKnown'].forEach(id=>byId(id).disabled=true);return}
@@ -221,7 +231,7 @@ renderList=function(){const arr=groupCards(selectedList).filter(c=>filter==='all
 };
 updateRequirement=function(){
  refresh();
- const pool=groupCards(selectedQuiz);
+ const pool=groupCards(selectedStudy);
  const n=pool.filter(c=>c.status==='unknown').length;
  byId('requirement').textContent=n?`Bu grupta ${n} bilmediğin kelime var. Quizde ${n} sorunun tamamı sorulacak.`:`Bu grupta bilmediğin kelime kalmamış. Quiz başlatmak için kartları “Bilmiyorum” olarak işaretle.`;
  byId('requirement').className=n?'success':'error';
@@ -229,14 +239,14 @@ updateRequirement=function(){
  byId('refreshQuiz').disabled=n===0;
 };
 begin=function(){
- const pool=groupCards(selectedQuiz).filter(c=>c.status==='unknown');
+ const pool=groupCards(selectedStudy).filter(c=>c.status==='unknown');
  if(!pool.length){resetQuiz();updateRequirement();return}
  const chosen=shuffle(pool);
  quiz=chosen.map((c,i)=>{
    const askMeaning=i%2===0;
    const correct=askMeaning?c.meaning:c.verb;
    // Yanlis secenekler de yalnizca secilen grubun kartlarindan gelir.
-   const alternatives=[...new Set(groupCards(selectedQuiz).filter(x=>x!==c).map(x=>askMeaning?x.meaning:x.verb))].filter(x=>x!==correct && String(x).trim());
+   const alternatives=[...new Set(groupCards(selectedStudy).filter(x=>x!==c).map(x=>askMeaning?x.meaning:x.verb))].filter(x=>x!==correct && String(x).trim());
    const wrong=shuffle(alternatives).slice(0,3);
    return {direction:askMeaning?'Bu kelimenin Türkçe anlamı nedir?':'Bu anlam hangi kelimeye aittir?',question:askMeaning?c.verb:c.meaning,correct,options:shuffle([correct,...wrong]),example:c.example};
  });
@@ -255,7 +265,7 @@ byId('importFile').onchange=async e=>{const file=e.target.files[0];if(!file)retu
 const oldSubmit=byId('form').onsubmit;
 byId('form').onsubmit=e=>{const before=cards.length;oldSubmit(e);if(cards.length>before){let c=cards[cards.length-1];c.category='Other';c.quizGroup='UNGROUPED';c.group='Yeni eklenenler';save();refresh()}};
 // Navigasyonun eski onclick kodu grup gorunumunu da guncellesin.
-document.querySelectorAll('.nav button').forEach(b=>{const old=b.onclick;b.onclick=e=>{old(e);refresh();if(b.dataset.page==='study')showCard();if(b.dataset.page==='quiz')updateRequirement();if(b.dataset.page==='list')renderList()}});
+document.querySelectorAll('.nav button').forEach(b=>{const old=b.onclick;b.onclick=e=>{old(e);refresh();if(b.dataset.page==='study')showCard();if(b.dataset.page==='quiz'){setActiveGroup(selectedStudy);updateRequirement();}if(b.dataset.page==='list')renderList()}});
 refresh();showCard();updateRequirement();
 })();
 
