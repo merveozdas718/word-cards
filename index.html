@@ -186,7 +186,7 @@ byId('refreshQuiz').textContent='Grup Quizini Yenile';
 byId('restart').textContent='Aynı Gruptaki Bilmediklerimi Yeniden Sor';
 byId('refreshDuring').textContent='Quiz Sorularını Yenile';
 const quizLabel=document.createElement('p');quizLabel.id='quizGroupBadge';quizLabel.style.cssText='font-weight:bold;color:#4338ca;background:#edeaff;padding:10px 12px;border-radius:10px;margin-bottom:14px';byId('quizGame').insertBefore(quizLabel,byId('quizGame').firstChild);
-const version=document.createElement('small');version.style.cssText='display:block;text-align:center;color:#5b5696;margin:4px';version.textContent='Grup kilitli sürüm v4 • Yalnızca seçilen gruptaki bilmediklerim';document.querySelector('header').appendChild(version);
+const version=document.createElement('small');version.style.cssText='display:block;text-align:center;color:#5b5696;margin:4px';version.textContent='Grup kilitli sürüm v6 • Yalnızca seçili gruptaki bilmediklerim';document.querySelector('header').appendChild(version);
 document.querySelector('header p').textContent='Benzer kelimeleri 30’luk gruplarla çalış; quizde yalnızca seçtiğin gruptaki bilmediklerin sorulsun.';
 const categoryName = {PV:'Phrasal Verbs', V:'Fiiller', ADJ:'Sıfatlar', N:'İsimler', ADV:'Zarflar', EXP:'İfadeler', Other:'Diğer Kelimeler'};
 function groups(){
@@ -232,39 +232,74 @@ renderList=function(){const arr=groupCards(selectedList).filter(c=>filter==='all
  arr.forEach(c=>{let real=cards.indexOf(c),isKnown=c.status==='known',el=document.createElement('article');el.className='item';el.innerHTML=`<div class="list-top"><h3>${safe(c.verb)}</h3><span class="badge ${isKnown?'known':'unknown'}">${isKnown?'Biliyorum':'Bilmiyorum'}</span></div><p>${safe(c.meaning)}</p><p class="example">${safe(c.example)}</p><p class="note">${safe(c.group||'')} • ${safe(c.quizGroup||'Grupsuz')}</p><div class="actions"><button class="action unknown" data-a="unknown" data-i="${real}">Bilmiyorum</button><button class="action known" data-a="known" data-i="${real}">Biliyorum</button><button class="action secondary" data-a="delete" data-i="${real}">Sil</button></div>`;byId('cardList').appendChild(el)});
  document.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>{const i=Number(b.dataset.i);if(b.dataset.a==='delete'){if(confirm(`"${cards[i].verb}" silinsin mi?`))cards.splice(i,1)}else cards[i].status=b.dataset.a;save();refresh();renderList();showCard();updateRequirement()});
 };
+// Tek kaynak: secilen quiz grubunun o anki Bilmediklerim listesi.
+function currentUnknownQuizCards(){
+  const groupId=String(selectedQuiz||'');
+  if(!groupId || groupId==='all') return [];
+  return cards.filter(c=>String(c.quizGroup||'UNGROUPED')===groupId && c.status==='unknown');
+}
 updateRequirement=function(){
- refresh();
- const pool=groupCards(selectedQuiz);
- const n=pool.filter(c=>c.status==='unknown').length;
- byId('requirement').textContent=n?`Seçili grup: ${selectedQuiz}. Bu grupta ${n} bilmediğin kelime var. Quizde ${n} sorunun tamamı sorulacak.`:`Bu grupta bilmediğin kelime kalmamış. Quiz başlatmak için kartları “Bilmiyorum” olarak işaretle.`;
- byId('requirement').className=n?'success':'error';
- byId('startQuiz').disabled=n===0;
- byId('refreshQuiz').disabled=n===0;
+  const pool=currentUnknownQuizCards();
+  const name=groups().find(g=>g.id===selectedQuiz)?.name || selectedQuiz;
+  byId('requirement').textContent=pool.length
+    ?`${name}: ${pool.length} bilmediğin kelime var. Her yeni quizde bu kelimelerin tamamı yeniden karıştırılır.`
+    :`${name}: Bu grupta bilmediğin kelime yok.`;
+  byId('requirement').className=pool.length?'success':'error';
+  byId('startQuiz').disabled=pool.length===0;
+  byId('refreshQuiz').disabled=pool.length===0;
 };
-begin=function(){
- const lockedGroup=selectedQuiz;
- if(!lockedGroup || lockedGroup==='all'){resetQuiz();updateRequirement();return;}
- const pool=cards.filter(c=>String(c.quizGroup||'UNGROUPED')===lockedGroup && c.status==='unknown');
- if(!pool.length){resetQuiz();updateRequirement();return}
- const chosen=shuffle(pool);
- quiz=chosen.map((c,i)=>{
-   const askMeaning=i%2===0;
-   const correct=askMeaning?c.meaning:c.verb;
-   // Yanlis secenekler de yalnizca secilen grubun kartlarindan gelir.
-   const alternatives=[...new Set(cards.filter(x=>String(x.quizGroup||'UNGROUPED')===lockedGroup && x!==c).map(x=>askMeaning?x.meaning:x.verb))].filter(x=>x!==correct && String(x).trim());
-   const wrong=shuffle(alternatives).slice(0,3);
-   return {groupId:lockedGroup,direction:askMeaning?'Bu kelimenin Türkçe anlamı nedir?':'Bu anlam hangi kelimeye aittir?',question:askMeaning?c.verb:c.meaning,correct,options:shuffle([correct,...wrong]),example:c.example};
- });
- if(!quiz.every(q=>q.groupId===lockedGroup)){alert('Grup uyuşmazlığı: Quiz başlatılmadı.');return;}
- quizLabel.textContent=`Aktif quiz grubu: ${groups().find(g=>g.id===lockedGroup)?.name||lockedGroup} (${quiz.length} bilinmeyen kelime)`;
- qIndex=0;score=0;answered=false;
- byId('quizStart').classList.add('hidden');
- byId('quizResult').classList.add('hidden');
- byId('quizGame').classList.remove('hidden');
- showQuestion();
+let quizLockedGroup='';
+function beginSelectedGroupQuiz(){
+  const groupId=String(selectedQuiz||'');
+  const source=currentUnknownQuizCards(); // HER BAŞLATMA/ YENİLEMEDE güncel durum
+  if(!source.length){resetQuiz();updateRequirement();return;}
+  quizLockedGroup=groupId;
+  const selectedQuestions=shuffle(source);
+  const sameGroup=cards.filter(c=>String(c.quizGroup||'UNGROUPED')===groupId);
+  quiz=selectedQuestions.map((card,i)=>{
+    const askMeaning=i%2===0;
+    const correct=askMeaning?card.meaning:card.verb;
+    const optionsPool=[...new Set(sameGroup.filter(c=>c!==card).map(c=>askMeaning?c.meaning:c.verb))]
+      .filter(text=>String(text).trim() && text!==correct);
+    const wrong=shuffle(optionsPool).slice(0,3);
+    return {groupId,verb:card.verb,direction:askMeaning?'Bu kelimenin Türkçe anlamı nedir?':'Bu anlam hangi kelimeye aittir?',question:askMeaning?card.verb:card.meaning,correct,options:shuffle([correct,...wrong]),example:card.example};
+  });
+  quizLabel.textContent=`Aktif grup: ${groups().find(g=>g.id===groupId)?.name||groupId} • ${quiz.length} bilmediğim kelime`;
+  qIndex=0;score=0;answered=false;
+  byId('quizStart').classList.add('hidden');
+  byId('quizResult').classList.add('hidden');
+  byId('quizGame').classList.remove('hidden');
+  showQuestion();
+}
+// Eski başlatma fonksiyonunu ve bütün eski olay bağlarını geçersiz kıl.
+begin=beginSelectedGroupQuiz;
+showQuestion=function(){
+  if(quizLockedGroup!==selectedQuiz){resetQuiz();updateRequirement();return;}
+  const q=quiz[qIndex];
+  if(!q || q.groupId!==quizLockedGroup){resetQuiz();updateRequirement();return;}
+  answered=false;
+  byId('quizProgress').textContent=`Soru ${qIndex+1} / ${quiz.length}`;
+  byId('quizScore').textContent=`Puan: ${score}`;
+  byId('direction').textContent=q.direction;
+  byId('question').textContent=q.question;
+  byId('feedback').textContent='';
+  byId('next').classList.add('hidden');
+  byId('options').innerHTML='';
+  q.options.forEach(o=>{let b=document.createElement('button');b.className='option';b.textContent=o;b.onclick=()=>answer(o,b);byId('options').appendChild(b)});
 };
-showQuestion=function(){answered=false;let q=quiz[qIndex];if(!q || q.groupId!==selectedQuiz){resetQuiz();updateRequirement();alert('Grup değişti. Yeni quiz için aynı gruptan tekrar başlat.');return;}byId('quizProgress').textContent=`Soru ${qIndex+1} / ${quiz.length}`;byId('quizScore').textContent=`Puan: ${score}`;byId('direction').textContent=q.direction;byId('question').textContent=q.question;byId('feedback').textContent='';byId('next').classList.add('hidden');byId('options').innerHTML='';q.options.forEach(o=>{let b=document.createElement('button');b.className='option';b.textContent=o;b.onclick=()=>answer(o,b);byId('options').appendChild(b)})};
-byId('next').onclick=()=>{qIndex++;if(qIndex>=quiz.length){byId('quizGame').classList.add('hidden');byId('quizResult').classList.remove('hidden');byId('finalScore').textContent=`${score} / ${quiz.length}`;byId('resultText').textContent=score/quiz.length>=.8?'Çok iyi!':score/quiz.length>=.6?'İyi gidiyorsun.':'Kartları biraz daha tekrar et.'}else showQuestion()};
+['startQuiz','refreshQuiz','refreshDuring','restart'].forEach(id=>{
+  byId(id).onclick=()=>beginSelectedGroupQuiz();
+});
+byId('next').onclick=()=>{
+  qIndex++;
+  if(qIndex>=quiz.length){
+    byId('quizGame').classList.add('hidden');
+    byId('quizResult').classList.remove('hidden');
+    byId('finalScore').textContent=`${score} / ${quiz.length}`;
+    const rate=score/quiz.length;
+    byId('resultText').textContent=(rate>=.8?'Çok iyi!':rate>=.6?'İyi gidiyorsun.':'Kartları biraz daha tekrar et.')+' Yeni quizde bu gruptaki güncel bilmediklerin yeniden karıştırılır.';
+  }else showQuestion();
+};
 // Import: orijinal fonksiyonun atladigi category,group,quizGroup alanlarini koru.
 byId('importFile').onchange=async e=>{const file=e.target.files[0];if(!file)return;try{const parsed=JSON.parse(await file.text()),data=Array.isArray(parsed)?parsed:parsed.cards;if(!Array.isArray(data))throw Error('JSON');const cleaned=data.filter(c=>c&&typeof c.verb==='string'&&typeof c.meaning==='string').map(c=>({verb:String(c.verb).trim(),meaning:String(c.meaning).trim(),example:String(c.example||'').trim(),translation:String(c.translation||'').trim(),status:c.status==='known'?'known':'unknown',category:String(c.category||'Other'),group:String(c.group||''),quizGroup:String(c.quizGroup||'UNGROUPED'),quizOrder:Number(c.quizOrder)||0})).filter(c=>c.verb&&c.meaning);if(!cleaned.length)throw Error('Empty');const replace=confirm(`${cleaned.length} kart bulundu.\n\nTamam: mevcut kartların üzerine yaz.\nİptal: mevcut kartlarla birleştir.`);if(replace){cards=cleaned}else{const id=c=>norm(c.verb)+'|'+norm(c.meaning);const statusMap=new Map(cards.map(c=>[id(c),c.status]));const mp=new Map(cards.map(c=>[id(c),c]));cleaned.forEach(c=>{c.status=statusMap.get(id(c))||c.status;mp.set(id(c),c)});cards=[...mp.values()]}
  save();index=0;refresh();showCard();renderList();updateRequirement();msg(`${cleaned.length} kart başarıyla içe aktarıldı.`,true,'transferMessage')}catch(err){msg('Dosya okunamadı. Geçerli bir JSON dosyası seç.',false,'transferMessage')}finally{e.target.value=''}};
