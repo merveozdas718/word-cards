@@ -186,7 +186,7 @@ byId('refreshQuiz').textContent='Grup Quizini Yenile';
 byId('restart').textContent='Aynı Gruptaki Bilmediklerimi Yeniden Sor';
 byId('refreshDuring').textContent='Quiz Sorularını Yenile';
 const quizLabel=document.createElement('p');quizLabel.id='quizGroupBadge';quizLabel.style.cssText='font-weight:bold;color:#4338ca;background:#edeaff;padding:10px 12px;border-radius:10px;margin-bottom:14px';byId('quizGame').insertBefore(quizLabel,byId('quizGame').firstChild);
-const version=document.createElement('small');version.style.cssText='display:block;text-align:center;color:#5b5696;margin:4px';version.textContent='Grup kilitli sürüm v3 • Sadece aktif gruptan quiz';document.querySelector('header').appendChild(version);
+const version=document.createElement('small');version.style.cssText='display:block;text-align:center;color:#5b5696;margin:4px';version.textContent='Grup kilitli sürüm v4 • Yalnızca seçilen gruptaki bilmediklerim';document.querySelector('header').appendChild(version);
 document.querySelector('header p').textContent='Benzer kelimeleri 30’luk gruplarla çalış; quizde yalnızca seçtiğin gruptaki bilmediklerin sorulsun.';
 const categoryName = {PV:'Phrasal Verbs', V:'Fiiller', ADJ:'Sıfatlar', N:'İsimler', ADV:'Zarflar', EXP:'İfadeler', Other:'Diğer Kelimeler'};
 function groups(){
@@ -234,9 +234,9 @@ renderList=function(){const arr=groupCards(selectedList).filter(c=>filter==='all
 };
 updateRequirement=function(){
  refresh();
- const pool=groupCards(selectedStudy);
+ const pool=groupCards(selectedQuiz);
  const n=pool.filter(c=>c.status==='unknown').length;
- byId('requirement').textContent=n?`Bu grupta ${n} bilmediğin kelime var. Quizde ${n} sorunun tamamı sorulacak.`:`Bu grupta bilmediğin kelime kalmamış. Quiz başlatmak için kartları “Bilmiyorum” olarak işaretle.`;
+ byId('requirement').textContent=n?`Seçili grup: ${selectedQuiz}. Bu grupta ${n} bilmediğin kelime var. Quizde ${n} sorunun tamamı sorulacak.`:`Bu grupta bilmediğin kelime kalmamış. Quiz başlatmak için kartları “Bilmiyorum” olarak işaretle.`;
  byId('requirement').className=n?'success':'error';
  byId('startQuiz').disabled=n===0;
  byId('refreshQuiz').disabled=n===0;
